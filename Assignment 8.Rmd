@@ -1,0 +1,139 @@
+---
+title: "Assignment 8"
+author: "Eva Burguete-Innocente"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+[Link to my github] (https://github.com/evainnocente/Assignment-8.git)
+
+Question 1: 
+
+-What effect (if any) does garlic mustard have on the plant community?
+
+I decided to address the effect that garlic mustard might have on abundance (number) of all plants in each quadrat. I evaluated whether the presence or absence of garlic mustard in a quadrat would affect the total number of all plants growing there. 
+
+Importing data and checking.
+
+```{r}
+data<-read.csv("FloristicSurvey.csv")
+str(data)
+head(data)
+```
+
+
+I decided to use a linear model to evaluate the effect of presence of garlic mustard on total plant abundance. I reshaped my data first.
+
+```{r}
+moddat<-data%>%
+  select(Quadrate,Location,c(11:44))
+
+library(reshape2)
+
+moddat2<-melt(moddat, variable.name="Plant", value.name="Abundance",id=c("Location","Quadrate"))
+
+moddat3<-moddat2%>%
+  group_by(Quadrate,Location)%>%
+  summarise(Total=sum(Abundance),.groups = "drop_last")
+
+```
+I plotted the data.
+
+```{r}
+ggplot(moddat3,aes(y=Total,x=Location,colour=Quadrate))+geom_point()+theme_bw() 
+```
+Figure 1. Plot showing the differences in total plant abundance (number of all plant species counted) in all quadrats based on whether that quadrat contained garlic mustard (i) or did not contain garlic mustard (o). 
+
+I then ran a linear model. The results suggest that Location (whether garlic mustard was in or out of the quadrat) does not have a significant effect on total plant abundance (p>0.05).
+
+```{r}
+summary(lm(Total~Location,data=moddat3))
+```
+
+Question 2: What has a stronger effect on plant communities: the presence/absence of garlic mustard (in/out) or sampling population?
+
+
+Making my separate datasets for analysis.
+
+```{r}
+library(dplyr)
+sampledat<-data%>%
+  select(Quadrate, Population, Location)%>%
+  mutate(Population=as.factor(Population))
+
+plantdat<-data%>%
+  select(Quadrate, c(11:44))
+head(plantdat)
+
+plantdat2<-plantdat%>%
+  select(c(2:35))
+
+row.names(plantdat2)<-plantdat$Quadrate
+
+```
+
+Making the distance matrix.
+
+```{r}
+florbin<-plantdat2
+florbin[plantdat2>0]<-1
+
+distmatrix<-dist(florbin,method="binary")
+
+```
+
+Making two neighbour-joining trees, one coloured by Location and one coloured by Population.
+
+```{r}
+library(ape)
+library(ggtree)
+library(ggplot2)
+
+flortree<-nj(distmatrix)
+```
+
+```{r}
+ggtree(flortree,layout="rectangular") %<+% sampledat +geom_tiplab(aes(colour=Location))
+```
+
+Figure 2. Neighbour-joining tree showing samples (quadrats) clustered by location (garlic mustard in or out).
+
+
+```{r}
+ggtree(flortree,layout="rectangular") %<+% sampledat +geom_tiplab(aes(colour=Population))
+```
+Figure 3. Neighbour-joining tree showing samples (quadrats) clustered by Population (code for specific sampling location).
+
+Running the NMDS model
+
+```{r}
+library(vegan)
+set.seed(123)
+NMDSdat<-metaMDS(distmatrix,k=2)
+```
+
+Creating data for plotting and plotting the NMDS of both Location and Population
+
+```{r}
+plantdat2
+plotdat<-data.frame(NMDS1=NMDSdat$points[,1],
+                    NMDS2=NMDSdat$points[,2],
+                    Quadrate=row.names(plantdat2))
+
+plotdat<-merge(plotdat, sampledat, by="Quadrate", all.x=T, all.y=F)
+
+```
+
+```{r}
+ggplot(aes(x=NMDS1,y=NMDS2,colour=Population,alpha=I(0.6)),data=plotdat)+geom_point()+theme_bw()
+```
+Figure 4. NMDS graph showing the dissimilarity between samples, clustered by population.
+
+
+```{r}
+ggplot(aes(x=NMDS1,y=NMDS2,colour=Location,alpha=I(0.6)),data=plotdat)+geom_point()+theme_bw()
+```
+Figure 5. NMDS graph showing the dissimilarity between samples, clustered by location
+
+
+It seems that Population and Location did not have much of an effect on the similarity between samples, since the points on the graph are not very strongly clustered together. However, based on the tree above and the NMDS graph, I would say that sampling population had a slightly stronger effect on the plant community than presence of garlic mustard (location), since the points on the graph/ branches on the tree are more clustered together. 
